@@ -3,12 +3,12 @@
 
 #include <limits.h>
 #include <openenclave/host.h>
-//#include <openenclave/internal/error.h>
-//#include <openenclave/internal/raise.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include "oecert_u.h"
+
+#ifdef OE_USE_LIBSGX
 
 #define INPUT_PARAM_OPTION_CERT "--cert"
 #define INPUT_PARAM_OPTION_REPORT "--report"
@@ -158,7 +158,7 @@ static oe_result_t _gen_report(
         // Write report to file
         {
             FILE* output = NULL;
-            output = fopen(report_filename, "w");
+            output = fopen(report_filename, "wb");
             if (!output)
             {
                 printf("Failed to open report file %s\n", report_filename);
@@ -388,6 +388,8 @@ static oe_result_t _process_params(oe_enclave_t* enclave)
     return result;
 }
 
+#endif // OE_USE_LIBSGX
+
 int main(int argc, const char* argv[])
 {
     int ret = 0;
@@ -408,7 +410,10 @@ int main(int argc, const char* argv[])
              0,
              &enclave)) != OE_OK)
     {
-        printf("Failed to create enclave. result=%u", result);
+        printf(
+            "Failed to create enclave. result=%u (%s)\n",
+            result,
+            oe_result_str(result));
         ret = 1;
         goto exit;
     }
@@ -416,9 +421,12 @@ int main(int argc, const char* argv[])
     _process_params(enclave);
 
     result = oe_terminate_enclave(enclave);
-#else
-#error "OE_USE_LIBSGX is not set to ON.  This tool requires SGX libraries."
-#endif
 exit:
+#else
+#pragma message \
+    "OE_USE_LIBSGX is not set to ON.  This tool requires SGX libraries."
+    OE_UNUSED(argc);
+    OE_UNUSED(argv);
+#endif
     return ret;
 }
