@@ -29,7 +29,7 @@ Param(
     [string]$AzureDCAPNupkgHash = '152ACE956348E80E533E63E6CB1D3CA20E4CA7DC775FC0B9413F552368F971D6',
     [Parameter(mandatory=$true)][string]$InstallPath,
     [Parameter(mandatory=$true)][ValidateSet("SGX1FLC", "SGX1", "SGX1FLC-NoDriver")][string]$LaunchConfiguration,
-    [Parameter(mandatory=$true)][ValidateSet("None", "Azure")][string]$DCAPClientType,
+    [Parameter(mandatory=$true)][ValidateSet("None", "Azure")][string]$DCAPClientType
 )
 
 if ($LaunchConfiguration -eq "SGX1")
@@ -505,7 +505,7 @@ function Install-DCAP-Dependencies {
             }
             Write-Output $install
         }
-        else
+        elseif ($LaunchConfiguration -eq "SGX1FLC-NoDriver")
         {
             Write-Output "Copying Intel_SGX_DCAP dll files into $($env:SystemRoot)\system32"
             Copy-item -Path $PACKAGES_DIRECTORY\Intel_SGX_DCAP\$driver\drivers\*\*.dll $env:SystemRoot\system32\
