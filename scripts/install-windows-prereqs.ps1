@@ -28,17 +28,11 @@ Param(
     [string]$AzureDCAPNupkgURL = 'https://oejenkins.blob.core.windows.net/oejenkins/Microsoft.Azure.DCAP.Client.1.0.0.nupkg', # TODO: Update this to official link once this is available
     [string]$AzureDCAPNupkgHash = '152ACE956348E80E533E63E6CB1D3CA20E4CA7DC775FC0B9413F552368F971D6',
     [Parameter(mandatory=$true)][string]$InstallPath,
-    [Parameter(mandatory=$true)][bool]$WithFLC,
-    [Parameter(mandatory=$true)][bool]$WithAzureDCAPClient,
-    [bool]$WithDCAPDriver = $true
+    [Parameter(mandatory=$true)][ValidateSet("SGX1FLC", "SGX1", "SGX1FLC-NoDriver")][string]$LaunchConfiguration,
+    [Parameter(mandatory=$true)][ValidateSet("None", "Azure")][string]$DCAPClientType,
 )
 
-if ( ($WithFLC -eq $false) -and ($WithAzureDCAPClient -eq $true) )
-{
-    Throw "Error: WithFLC cannot be false while WithAzureDCAPClient is true."
-}
-
-if ($WithFLC -eq $false)
+if ($LaunchConfiguration -eq "SGX1")
 {
     $IntelPSWURL = "https://oejenkins.blob.core.windows.net/oejenkins/intel_sgx_win_2.2.100.47975_PV.zip"
     $IntelPSWHash = 'EB479D1E029D51E48E534C284FCF5CCA3A937DA43052DCB2F4C71E5F354CA623'
@@ -455,7 +449,7 @@ function Remove-DCAPDriver {
 }
 
 
-function Install-DCAPDrivers {
+function Install-DCAP-Dependencies {
     Install-Tool -InstallerPath $PACKAGES["dcap"]["local_file"] `
                  -ArgumentList @('/auto', "$PACKAGES_DIRECTORY\Intel_SGX_DCAP")
 
@@ -502,7 +496,7 @@ function Install-DCAPDrivers {
                 Remove-DCAPDriver -Name $drivers[$driver]['location']
             }
         }
-        if ($WithDCAPDriver -eq $true)
+        if ($LaunchConfiguration -eq "SGX1FLC")
         {
             Write-Output "Installing driver $($drivers[$driver]['location'])"
             $install = & $devConBinaryPath install "$($inf.FullName)" $drivers[$driver]['location']
@@ -531,7 +525,7 @@ function Install-DCAPDrivers {
     Copy-Item $PACKAGES['azure_dcap_client_nupkg']['local_file'] -Destination $TEMP_NUGET_DIR -Force
 
     # Note: the ordering of nuget installs below is important to preserve here until the issue with the EnclaveCommonAPI nuget package gets fixed.
-    if ($WithAzureDCAPClient -eq $true)
+    if ($DCAPClientType -eq "Azure")
     {
         & "$PACKAGES_DIRECTORY\nuget.exe" install 'Microsoft.Azure.DCAP.Client' -Source "$TEMP_NUGET_DIR;nuget.org" -OutputDirectory "$OE_NUGET_DIR" -ExcludeVersion
         if($LASTEXITCODE -ne 0) {
@@ -547,7 +541,7 @@ function Install-DCAPDrivers {
         Throw "Failed to install nuget EnclaveCommonAPI"
     }
 
-    if ($WithDCAPDriver -eq $true)
+    if ($LaunchConfiguration -eq "SGX1FLC")
     {
         # Please refer to Intel's Windows DCAP documentation for this registry setting: https://download.01.org/intel-sgx/dcap-1.2/windows/docs/Intel_SGX_DCAP_Windows_SW_Installation_Guide.pdf
         New-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\sgx_lc_msr\Parameters" -Name "SGX_Launch_Config_Optin" -Value 1 -PropertyType DWORD -Force
@@ -574,10 +568,12 @@ try {
     Install-OCaml
     Install-Shellcheck
     Install-PSW
-    if ($WithFLC -eq $true)
+
+    if ( ($LaunchConfiguration -eq "SGX1FLC") -or ($LaunchConfiguration -eq "SGX1FLC-NoDriver") -or ($DCAPClientType -eq "Azure") )
     {
-        Install-DCAPDrivers
+        Install-DCAP-Dependencies
     }
+
     Install-VCRuntime
 
     Write-Output 'Please reboot your computer for the configuration to complete.'
