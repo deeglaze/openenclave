@@ -14,6 +14,11 @@
 #include "../common/tests.h"
 #include "tests_u.h"
 
+#ifdef _WIN32
+#include <Shlobj.h>
+#include <Windows.h>
+#endif
+
 #define SKIP_RETURN_CODE 2
 
 extern void TestVerifyTCBInfo(
@@ -68,6 +73,45 @@ int main(int argc, const char* argv[])
     oe_result_t result;
     oe_enclave_t* enclave = NULL;
 
+#ifdef _WIN32
+    /* This is a workaround for running in Visual Studio 2017 Test Explorer
+     * where the environment variables are not correctly propagated to the
+     * test. This is resolved in Visual Studio 2019 */
+    WCHAR path[_MAX_PATH];
+
+    if (!GetEnvironmentVariableW(L"SystemRoot", path, _MAX_PATH))
+    {
+        if (GetLastError() != ERROR_ENVVAR_NOT_FOUND)
+            exit(1);
+
+        UINT path_length = GetSystemWindowsDirectoryW(path, _MAX_PATH);
+        if (path_length == 0 || path_length > _MAX_PATH)
+            exit(1);
+
+        if (SetEnvironmentVariableW(L"SystemRoot", path) == 0)
+            exit(1);
+    }
+
+    if (!GetEnvironmentVariableW(L"LOCALAPPDATA", path, _MAX_PATH))
+    {
+        if (GetLastError() != ERROR_ENVVAR_NOT_FOUND)
+            exit(1);
+
+        WCHAR* local_path = NULL;
+        if (SHGetKnownFolderPath(FOLDERID_LocalAppData, 0, NULL, &local_path) !=
+            S_OK)
+        {
+            exit(1);
+        }
+
+        BOOL success = SetEnvironmentVariableW(L"LOCALAPPDATA", local_path);
+        CoTaskMemFree(local_path);
+
+        if (!success)
+            exit(1);
+    }
+#endif
+
     const uint32_t flags = oe_get_create_flags();
     if ((flags & OE_ENCLAVE_FLAG_SIMULATE) != 0)
     {
@@ -109,34 +153,15 @@ int main(int argc, const char* argv[])
      */
     g_enclave = enclave;
     test_local_report(&target_info);
-    test_remote_report();
     test_parse_report_negative();
     test_local_verify_report();
 
-#ifdef OE_USE_LIBSGX
-    test_remote_verify_report();
-
     OE_TEST(test_iso8601_time(enclave) == OE_OK);
     OE_TEST(test_iso8601_time_negative(enclave) == OE_OK);
-#endif
-
-    /*
-     * Enclave API tests.
-     */
 
     OE_TEST(enclave_test_local_report(enclave, &target_info) == OE_OK);
-
-    OE_TEST(enclave_test_remote_report(enclave) == OE_OK);
-
     OE_TEST(enclave_test_parse_report_negative(enclave) == OE_OK);
-
     OE_TEST(enclave_test_local_verify_report(enclave) == OE_OK);
-
-#ifdef OE_USE_LIBSGX
-    OE_TEST(enclave_test_remote_verify_report(enclave) == OE_OK);
-
-    TestVerifyTCBInfo(enclave, "./data/tcbInfo.json");
-    TestVerifyTCBInfo(enclave, "./data/tcbInfo_with_pceid.json");
 
     // Get current time and pass it to enclave.
     std::time_t t = std::time(0);
@@ -152,6 +177,23 @@ int main(int argc, const char* argv[])
     test_minimum_issue_date(enclave, now);
 
     generate_and_save_report(enclave);
+
+#ifdef OE_USE_LIBSGX
+
+    test_remote_report();
+    test_parse_report_negative();
+
+    test_remote_verify_report();
+
+    /*
+     * Enclave API tests.
+     */
+    OE_TEST(enclave_test_remote_report(enclave) == OE_OK);
+    OE_TEST(enclave_test_remote_verify_report(enclave) == OE_OK);
+
+    TestVerifyTCBInfo(enclave, "./data/tcbInfo.json");
+    TestVerifyTCBInfo(enclave, "./data/tcbInfo_with_pceid.json");
+
 #endif
 
     /* Terminate the enclave */
