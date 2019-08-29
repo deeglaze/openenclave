@@ -577,7 +577,7 @@ try {
     }
     else
     {
-        Write-Host "*** NOT installing Azure.DCAP.Windows ***"
+        Write-Host "*** NOT installing Azure.DCAP.Windows client ***"
     }
 
     if ($WithFLC -eq "yes")

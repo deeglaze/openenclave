@@ -152,34 +152,16 @@ int main(int argc, const char* argv[])
      * Host API tests.
      */
     g_enclave = enclave;
-
-#ifdef OE_USE_LIBSGX
     test_local_report(&target_info);
-    test_remote_report();
     test_parse_report_negative();
     test_local_verify_report();
-
-    test_remote_verify_report();
 
     OE_TEST(test_iso8601_time(enclave) == OE_OK);
     OE_TEST(test_iso8601_time_negative(enclave) == OE_OK);
 
-    /*
-     * Enclave API tests.
-     */
-
     OE_TEST(enclave_test_local_report(enclave, &target_info) == OE_OK);
-
-    OE_TEST(enclave_test_remote_report(enclave) == OE_OK);
-
     OE_TEST(enclave_test_parse_report_negative(enclave) == OE_OK);
-
     OE_TEST(enclave_test_local_verify_report(enclave) == OE_OK);
-
-    OE_TEST(enclave_test_remote_verify_report(enclave) == OE_OK);
-
-    TestVerifyTCBInfo(enclave, "./data/tcbInfo.json");
-    TestVerifyTCBInfo(enclave, "./data/tcbInfo_with_pceid.json");
 
     // Get current time and pass it to enclave.
     std::time_t t = std::time(0);
@@ -195,6 +177,23 @@ int main(int argc, const char* argv[])
     test_minimum_issue_date(enclave, now);
 
     generate_and_save_report(enclave);
+
+#ifdef OE_USE_LIBSGX
+
+    test_remote_report();
+    test_parse_report_negative();
+
+    test_remote_verify_report();
+
+    /*
+     * Enclave API tests.
+     */
+    OE_TEST(enclave_test_remote_report(enclave) == OE_OK);
+    OE_TEST(enclave_test_remote_verify_report(enclave) == OE_OK);
+
+    TestVerifyTCBInfo(enclave, "./data/tcbInfo.json");
+    TestVerifyTCBInfo(enclave, "./data/tcbInfo_with_pceid.json");
+
 #endif
 
     /* Terminate the enclave */
